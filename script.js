@@ -1,7 +1,8 @@
-// Récupération depuis window.config
-const supabase = supabase.createClient(
-    window.config.SUPABASE_URL, 
-    window.config.SUPABASE_ANON_KEY
+// Récupération depuis window.config (ou hardcodé ici)
+// On utilise 'supabaseClient' pour éviter le conflit avec la variable globale 'supabase' du CDN
+const supabaseClient = supabase.createClient(
+    "https://bofuwdgprigtucyaawcq.supabase.co",
+    "sb_publishable_T09vHKFa8fnGOJuc7oQnoQ_aGEMnSnR"
 );
 
 const loadingDiv = document.getElementById('loading');
@@ -14,7 +15,8 @@ async function handleAuth() {
     // Supabase met le token dans le hash de l'URL (#access_token=...)
     // La librairie supabase-js gère cela automatiquement lors de l'initialisation de la session
     
-    const { data: { session }, error } = await supabase.auth.getSession();
+    // MODIFICATION ICI : on utilise supabaseClient
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
 
     // On regarde aussi le hash manuellement pour détecter le type d'événement si besoin
     const hash = window.location.hash;
@@ -48,7 +50,8 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
     btn.textContent = 'Mise à jour...';
     btn.disabled = true;
 
-    const { data, error } = await supabase.auth.updateUser({
+    // MODIFICATION ICI : on utilise supabaseClient
+    const { data, error } = await supabaseClient.auth.updateUser({
         password: newPassword
     });
 
