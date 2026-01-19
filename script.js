@@ -1,4 +1,4 @@
-// Configuration du client
+// Initialisation du client Supabase
 const supabaseClient = supabase.createClient(
     "https://bofuwdgprigtucyaawcq.supabase.co",
     "sb_publishable_T09vHKFa8fnGOJuc7oQnoQ_aGEMnSnR"
@@ -11,39 +11,45 @@ const resetSuccessDiv = document.getElementById('reset-success');
 const errorMsg = document.getElementById('error-msg');
 
 async function handleAuth() {
-    // 1. IMPORTANT : On récupère le hash TOUT DE SUITE, avant que Supabase ne le nettoie
-    const hash = window.location.hash;
-    
-    // On nettoie le hash pour enlever le '#' initial, et parfois un '/' qui traîne
-    const cleanHash = hash.replace(/^#\/?/, ''); 
-    const params = new URLSearchParams(cleanHash);
-    const type = params.get('type'); 
-    
-    console.log("Type détecté:", type); // Pour le debug
-
-    // 2. Ensuite on laisse Supabase gérer la session
+    // 1. Récupération de la session
     const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+    // 2. Extraction robuste du type d'événement
+    // On nettoie le hash pour enlever le '#' et l'éventuel '/' au début (ex: #/access_token...)
+    const cleanHash = window.location.hash.replace(/^#\/?/, '');
+    const hashParams = new URLSearchParams(cleanHash);
+    const queryParams = new URLSearchParams(window.location.search);
+
+    // On cherche 'type' dans le hash EN PREMIER, sinon dans l'URL classique
+    const type = hashParams.get('type') || queryParams.get('type');
+
+    // Logs pour le débogage (fais F12 pour voir si 'type' est bien détecté)
+    console.log("Hash nettoyé:", cleanHash);
+    console.log("Type détecté:", type);
+    console.log("Session active:", !!session);
 
     loadingDiv.classList.add('hidden');
 
     // 3. Logique d'affichage
     if (type === 'recovery') {
-        // C'est un reset de mot de passe
+        // Cas : Réinitialisation de mot de passe
         resetPasswordDiv.classList.remove('hidden');
     } else if (type === 'signup' || type === 'invite') {
-        // C'est une confirmation d'email
+        // Cas : Confirmation d'email
         verifiedDiv.classList.remove('hidden');
     } else if (session) {
-        // Si on a une session mais pas de type explicite (et ce n'est pas un recovery raté)
+        // Cas : Connecté mais pas de type 'recovery' détecté
+        // ATTENTION : Si le lien de recovery perd le paramètre 'type', on peut tomber ici par erreur.
+        // Mais avec la correction ci-dessus, cela ne devrait plus arriver.
         verifiedDiv.classList.remove('hidden');
     } else {
-        // Cas par défaut ou erreur
+        // Cas : Lien invalide ou expiré
         verifiedDiv.innerHTML = "<h1>Lien expiré ou invalide</h1><p>Essaie de te reconnecter depuis l'app.</p>";
         verifiedDiv.classList.remove('hidden');
     }
 }
 
-// Gestionnaire du formulaire de changement de mot de passe
+// Gestion du formulaire de nouveau mot de passe
 document.getElementById('password-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const newPassword = document.getElementById('new-password').value;
@@ -67,5 +73,5 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
     }
 });
 
-// Lancer la logique au chargement
+// Lancement
 handleAuth();
