@@ -1,5 +1,4 @@
-// Récupération depuis window.config (ou hardcodé ici)
-// On utilise 'supabaseClient' pour éviter le conflit avec la variable globale 'supabase' du CDN
+// Configuration du client
 const supabaseClient = supabase.createClient(
     "https://bofuwdgprigtucyaawcq.supabase.co",
     "sb_publishable_T09vHKFa8fnGOJuc7oQnoQ_aGEMnSnR"
@@ -12,19 +11,22 @@ const resetSuccessDiv = document.getElementById('reset-success');
 const errorMsg = document.getElementById('error-msg');
 
 async function handleAuth() {
-    // Supabase met le token dans le hash de l'URL (#access_token=...)
-    // La librairie supabase-js gère cela automatiquement lors de l'initialisation de la session
-    
-    // MODIFICATION ICI : on utilise supabaseClient
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-
-    // On regarde aussi le hash manuellement pour détecter le type d'événement si besoin
+    // 1. IMPORTANT : On récupère le hash TOUT DE SUITE, avant que Supabase ne le nettoie
     const hash = window.location.hash;
-    const type = new URLSearchParams(hash.substring(1)).get('type'); 
-    // type peut être 'recovery', 'signup', 'invite'
+    
+    // On nettoie le hash pour enlever le '#' initial, et parfois un '/' qui traîne
+    const cleanHash = hash.replace(/^#\/?/, ''); 
+    const params = new URLSearchParams(cleanHash);
+    const type = params.get('type'); 
+    
+    console.log("Type détecté:", type); // Pour le debug
+
+    // 2. Ensuite on laisse Supabase gérer la session
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
 
     loadingDiv.classList.add('hidden');
 
+    // 3. Logique d'affichage
     if (type === 'recovery') {
         // C'est un reset de mot de passe
         resetPasswordDiv.classList.remove('hidden');
@@ -32,7 +34,7 @@ async function handleAuth() {
         // C'est une confirmation d'email
         verifiedDiv.classList.remove('hidden');
     } else if (session) {
-        // Si on a une session mais pas de type explicite, on suppose une connexion réussie
+        // Si on a une session mais pas de type explicite (et ce n'est pas un recovery raté)
         verifiedDiv.classList.remove('hidden');
     } else {
         // Cas par défaut ou erreur
@@ -50,7 +52,6 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
     btn.textContent = 'Mise à jour...';
     btn.disabled = true;
 
-    // MODIFICATION ICI : on utilise supabaseClient
     const { data, error } = await supabaseClient.auth.updateUser({
         password: newPassword
     });
