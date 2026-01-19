@@ -1,77 +1,40 @@
-// Initialisation du client Supabase
-const supabaseClient = supabase.createClient(
-    "https://bofuwdgprigtucyaawcq.supabase.co",
-    "sb_publishable_T09vHKFa8fnGOJuc7oQnoQ_aGEMnSnR"
-);
-
-const loadingDiv = document.getElementById('loading');
-const verifiedDiv = document.getElementById('verified');
-const resetPasswordDiv = document.getElementById('reset-password');
-const resetSuccessDiv = document.getElementById('reset-success');
-const errorMsg = document.getElementById('error-msg');
-
 async function handleAuth() {
-    // 1. Récupération de la session
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    // 1. Vérifier d'abord les paramètres d'erreur
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const errorCode = hashParams.get('error_code');
+    
+    if (errorCode === 'otp_expired') {
+        loadingDiv.classList.add('hidden');
+        verifiedDiv.innerHTML = "<h1>Lien expiré</h1><p>Ce lien de réinitialisation a expiré. Demande un nouveau lien depuis l'application.</p>";
+        verifiedDiv.classList.remove('hidden');
+        return;
+    }
 
-    // 2. Extraction robuste du type d'événement
-    // On nettoie le hash pour enlever le '#' et l'éventuel '/' au début (ex: #/access_token...)
-    const cleanHash = window.location.hash.replace(/^#\/?/, '');
-    const hashParams = new URLSearchParams(cleanHash);
-    const queryParams = new URLSearchParams(window.location.search);
+    // 2. Laisser Supabase gérer le hash automatiquement
+    const { data, error } = await supabaseClient.auth.getSession();
 
-    // On cherche 'type' dans le hash EN PREMIER, sinon dans l'URL classique
-    const type = hashParams.get('type') || queryParams.get('type');
-
-    // Logs pour le débogage (fais F12 pour voir si 'type' est bien détecté)
-    console.log("Hash nettoyé:", cleanHash);
+    // 3. Vérifier le type d'événement depuis le hash
+    const type = hashParams.get('type');
+    
     console.log("Type détecté:", type);
-    console.log("Session active:", !!session);
+    console.log("Session active:", !!data.session);
+    console.log("Hash complet:", window.location.hash);
 
     loadingDiv.classList.add('hidden');
 
-    // 3. Logique d'affichage
-    if (type === 'recovery') {
+    // 4. Logique d'affichage
+    if (type === 'recovery' && data.session) {
         // Cas : Réinitialisation de mot de passe
         resetPasswordDiv.classList.remove('hidden');
-    } else if (type === 'signup' || type === 'invite') {
+    } else if (type === 'signup' || type === 'invite' || type === 'email_change') {
         // Cas : Confirmation d'email
         verifiedDiv.classList.remove('hidden');
-    } else if (session) {
-        // Cas : Connecté mais pas de type 'recovery' détecté
-        // ATTENTION : Si le lien de recovery perd le paramètre 'type', on peut tomber ici par erreur.
-        // Mais avec la correction ci-dessus, cela ne devrait plus arriver.
+    } else if (data.session && !type) {
+        // Session active mais sans type spécifique
         verifiedDiv.classList.remove('hidden');
     } else {
         // Cas : Lien invalide ou expiré
-        verifiedDiv.innerHTML = "<h1>Lien expiré ou invalide</h1><p>Essaie de te reconnecter depuis l'app.</p>";
+        verifiedDiv.innerHTML = "<h1>Lien invalide</h1><p>Ce lien n'est pas valide ou a expiré. Essaie de te reconnecter depuis l'app.</p>";
         verifiedDiv.classList.remove('hidden');
     }
 }
-
-// Gestion du formulaire de nouveau mot de passe
-document.getElementById('password-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const newPassword = document.getElementById('new-password').value;
-    const btn = e.target.querySelector('button');
-    
-    btn.textContent = 'Mise à jour...';
-    btn.disabled = true;
-
-    const { data, error } = await supabaseClient.auth.updateUser({
-        password: newPassword
-    });
-
-    if (error) {
-        errorMsg.textContent = error.message;
-        errorMsg.classList.remove('hidden');
-        btn.textContent = 'Mettre à jour';
-        btn.disabled = false;
-    } else {
-        resetPasswordDiv.classList.add('hidden');
-        resetSuccessDiv.classList.remove('hidden');
-    }
-});
-
-// Lancement
-handleAuth();
