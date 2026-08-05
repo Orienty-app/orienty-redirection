@@ -1,24 +1,28 @@
 const SUPABASE_URL = 'https://bofuwdgprigtucyaawcq.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_T09vHKFa8fnGOJuc7oQnoQ_aGEMnSnR';
 
-
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loadingDiv = document.getElementById("loading");
 const verifiedDiv = document.getElementById("verified");
 const resetPasswordDiv = document.getElementById("reset-password");
 const resetSuccessDiv = document.getElementById("reset-success");
+
 const passwordForm = document.getElementById("password-form");
 const newPasswordInput = document.getElementById("new-password");
 const errorMsg = document.getElementById("error-msg");
 
 function showError(message) {
     loadingDiv.classList.add("hidden");
-    verifiedDiv.innerHTML = `<h1>Erreur</h1><p>${message}</p>`;
+    resetPasswordDiv.classList.add("hidden");
+    verifiedDiv.innerHTML = `
+        <h1>Erreur</h1>
+        <p>${message}</p>
+    `;
     verifiedDiv.classList.remove("hidden");
 }
 
-// 1. ÉCOUTEUR AUTH (Placé EN PREMIER pour ne rater aucun événement)
+// 1. ÉCOUTEUR AUTHENTIFICATION
 supabaseClient.auth.onAuthStateChange((event, session) => {
     console.log("🔥 EVENT AUTH :", event);
     
@@ -31,9 +35,9 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     }
 });
 
-// 2. INITIALISATION ET TRAITEMENT DES URLS
+// 2. INITIALISATION ET VÉRIFICATION DE L'URL
 async function initAuth() {
-    // Vérification des erreurs dans le HASH (#error=...)
+    // A. Gestion des erreurs dans le HASH (#error=...)
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const errorCode = hashParams.get("error_code");
 
@@ -43,26 +47,25 @@ async function initAuth() {
         return;
     }
 
-    // Traitement du code PKCE (?code=...)
+    // B. Gestion du code PKCE (?code=...)
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get("code");
 
     if (code) {
         const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
         if (error) {
-            showError(error.message);
+            showError("Le lien de réinitialisation est invalide ou a été ouvert sur un autre appareil. Veuillez repasser en flux 'Implicit' dans le dashboard Supabase.");
             return;
         }
-        loadingDiv.classList.add("hidden");
-        resetPasswordDiv.classList.remove("hidden");
-        window.history.replaceState({}, document.title, window.location.pathname);
-        return;
     }
 
-    // Sécurité : masquer le loader si aucune action ni session n'est détectée
+    // C. Vérification de la session active après redirection
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session && !window.location.hash.includes("access_token")) {
-        showError("Lien invalide ou aucune session active.");
+    if (session) {
+        loadingDiv.classList.add("hidden");
+        if (window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery")) {
+            resetPasswordDiv.classList.remove("hidden");
+        }
     }
 }
 
