@@ -5,18 +5,22 @@
 const SUPABASE_URL = 'https://bofuwdgprigtucyaawcq.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_T09vHKFa8fnGOJuc7oQnoQ_aGEMnSnR';
 
-console.log("🚀 Initialisation Supabase...");
+
+console.log("🚀 Démarrage application");
+
 
 const supabaseClient = supabase.createClient(
     SUPABASE_URL,
     SUPABASE_ANON_KEY
 );
 
-console.log("✅ Client Supabase créé");
+
+console.log("✅ Client Supabase initialisé");
+
 
 
 // ======================================================
-// 2. Récupération DOM
+// ELEMENTS HTML
 // ======================================================
 
 const loadingDiv = document.getElementById("loading");
@@ -28,59 +32,25 @@ const passwordForm = document.getElementById("password-form");
 const newPasswordInput = document.getElementById("new-password");
 const errorMsg = document.getElementById("error-msg");
 
-console.log("📄 DOM chargé");
 
+console.log("📄 Elements HTML récupérés");
 
-// ======================================================
-// 3. Analyse du hash URL
-// ======================================================
-
-function checkUrlHash() {
-
-    console.log("🔎 Analyse du hash URL...");
-    console.log("HASH :", window.location.hash);
-
-
-    const hash = window.location.hash.substring(1);
-
-    if (!hash) {
-        console.log("ℹ️ Aucun hash trouvé");
-        return null;
-    }
-
-
-    const params = new URLSearchParams(hash);
-
-    const data = {
-        error: params.get("error"),
-        errorCode: params.get("error_code"),
-        errorDescription: params.get("error_description"),
-        accessToken: params.get("access_token"),
-        refreshToken: params.get("refresh_token"),
-        type: params.get("type")
-    };
-
-
-    console.log("📦 Données hash :", data);
-
-    return data;
-}
 
 
 // ======================================================
-// 4. Gestion des erreurs URL
+// AFFICHAGE ERREUR
 // ======================================================
 
-function displayError(message) {
+function showError(message) {
 
-    console.error("❌ Erreur :", message);
+    console.error("❌ ERREUR :", message);
 
 
     loadingDiv.classList.add("hidden");
 
 
     verifiedDiv.innerHTML = `
-        <h1>Lien invalide</h1>
+        <h1>Erreur</h1>
         <p>${message}</p>
     `;
 
@@ -89,137 +59,271 @@ function displayError(message) {
 }
 
 
+
 // ======================================================
-// 5. Initialisation Auth
+// ANALYSE URL
 // ======================================================
 
-async function initAuth() {
+function debugUrl(){
 
-    console.log("🔐 Démarrage Auth...");
+    console.log("==============================");
+    console.log("🌍 URL actuelle");
+    console.log(window.location.href);
 
 
-    const hashData = checkUrlHash();
+    console.log("SEARCH :");
+    console.log(window.location.search);
 
 
-    // Gestion erreurs venant de Supabase
-    if(hashData && hashData.errorCode) {
+    console.log("HASH :");
+    console.log(window.location.hash);
 
-        displayError(
-            decodeURIComponent(
-                hashData.errorDescription ||
-                "Le lien est expiré ou invalide."
-            ).replace(/\+/g, " ")
+
+    console.log("==============================");
+
+}
+
+
+debugUrl();
+
+
+
+// ======================================================
+// INITIALISATION AUTH SUPABASE
+// ======================================================
+
+async function initAuth(){
+
+
+    console.log("🔐 Initialisation Auth");
+
+
+
+    // --------------------------------------------------
+    // 1) Gestion PKCE (?code=xxxx)
+    // --------------------------------------------------
+
+    const params = new URLSearchParams(
+        window.location.search
+    );
+
+
+    const code = params.get("code");
+
+
+    console.log("🔎 Code PKCE détecté :", code);
+
+
+
+    if(code){
+
+
+        console.log(
+            "🔄 Echange du code contre une session..."
         );
 
-        return;
+
+
+        const {
+            data,
+            error
+        } = await supabaseClient.auth.exchangeCodeForSession(
+            code
+        );
+
+
+
+        console.log(
+            "📦 Résultat échange session :",
+            data
+        );
+
+
+        console.log(
+            "⚠️ Erreur échange session :",
+            error
+        );
+
+
+
+        if(error){
+
+            showError(error.message);
+            return;
+
+        }
+
+
+
+        console.log(
+            "✅ Session créée avec succès"
+        );
+
+
+
+        loadingDiv.classList.add("hidden");
+
+
+        resetPasswordDiv.classList.remove("hidden");
+
+
+
+        // Nettoyage URL
+
+        window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+        );
+
+
     }
 
 
 
-    console.log("⏳ Récupération session actuelle...");
+    // --------------------------------------------------
+    // 2) Gestion ancien système HASH
+    // --------------------------------------------------
+
+
+    const hashParams =
+        new URLSearchParams(
+            window.location.hash.substring(1)
+        );
+
+
+
+    const hashObject =
+        Object.fromEntries(hashParams);
+
+
+
+    console.log(
+        "🔎 Hash Supabase :",
+        hashObject
+    );
+
+
+
+    const errorCode =
+        hashParams.get("error_code");
+
+
+
+    if(errorCode){
+
+
+        const description =
+            hashParams.get("error_description")
+            ||
+            "Lien expiré ou invalide.";
+
+
+
+        showError(
+            decodeURIComponent(description)
+            .replace(/\+/g," ")
+        );
+
+
+        return;
+
+    }
+
+
+
+    // --------------------------------------------------
+    // 3) Session existante
+    // --------------------------------------------------
 
 
     const {
-        data,
-        error
-    } = await supabaseClient.auth.getSession();
-
-
-    console.log("SESSION :", data.session);
-    console.log("SESSION ERROR :", error);
-
-
-
-    if(error) {
-
-        displayError(error.message);
-        return;
-
+        data:sessionData,
+        error:sessionError
     }
+    =
+    await supabaseClient.auth.getSession();
 
 
 
-    // Ecoute événements Supabase
+    console.log(
+        "👤 Session actuelle :",
+        sessionData.session
+    );
+
+
+    console.log(
+        "⚠️ Erreur session :",
+        sessionError
+    );
+
+
+
+    // --------------------------------------------------
+    // 4) Listener Auth
+    // --------------------------------------------------
+
 
     supabaseClient.auth.onAuthStateChange(
-        async (event, session) => {
+        (event, session)=>{
 
 
-            console.log("==========================");
-            console.log("🔥 AUTH EVENT :", event);
+            console.log("==============================");
+            console.log("🔥 EVENT AUTH :", event);
             console.log("👤 SESSION :", session);
-            console.log("==========================");
+            console.log("==============================");
 
 
 
-            switch(event) {
+            if(event === "PASSWORD_RECOVERY"){
 
 
-                case "PASSWORD_RECOVERY":
-
-                    console.log(
-                        "🔑 Mode récupération mot de passe détecté"
-                    );
-
-
-                    loadingDiv.classList.add("hidden");
-
-                    resetPasswordDiv
-                        .classList
-                        .remove("hidden");
-
-
-                    break;
+                console.log(
+                    "🔑 Mode récupération détecté"
+                );
 
 
 
-                case "SIGNED_IN":
+                loadingDiv.classList.add("hidden");
 
 
-                    console.log(
-                        "✅ Utilisateur connecté"
-                    );
-
-
-                    loadingDiv.classList.add("hidden");
-
-
-                    verifiedDiv
-                        .classList
-                        .remove("hidden");
-
-
-                    break;
-
-
-
-                case "INITIAL_SESSION":
-
-
-                    console.log(
-                        "ℹ️ Session initiale chargée"
-                    );
-
-
-                    break;
-
-
-
-                default:
-
-                    console.log(
-                        "ℹ️ Event non géré :",
-                        event
-                    );
+                resetPasswordDiv.classList.remove("hidden");
 
             }
+
+
+
+            if(
+                event === "SIGNED_IN"
+                &&
+                session
+            ){
+
+
+                console.log(
+                    "✅ Utilisateur connecté"
+                );
+
+
+
+                loadingDiv.classList.add("hidden");
+
+
+                verifiedDiv.classList.remove("hidden");
+
+            }
+
+
 
         }
     );
 
 
 
-    console.log("👂 Listener Auth activé");
+    console.log(
+        "👂 Listener Supabase actif"
+    );
+
 
 }
 
@@ -229,22 +333,24 @@ initAuth();
 
 
 
-// ======================================================
-// 6. Changement du mot de passe
-// ======================================================
 
+// ======================================================
+// CHANGEMENT MOT DE PASSE
+// ======================================================
 
 passwordForm.addEventListener(
     "submit",
-    async (e)=>{
+    async(event)=>{
 
 
-        e.preventDefault();
+        event.preventDefault();
+
 
 
         console.log(
-            "📝 Envoi nouveau mot de passe..."
+            "📝 Tentative changement mot de passe"
         );
+
 
 
         errorMsg.classList.add("hidden");
@@ -256,15 +362,27 @@ passwordForm.addEventListener(
 
 
 
+        console.log(
+            "🔐 Taille mot de passe :",
+            password.length
+        );
+
+
+
         if(password.length < 6){
+
 
             errorMsg.textContent =
                 "Le mot de passe doit contenir au moins 6 caractères.";
 
+
             errorMsg.classList.remove("hidden");
 
+
             return;
+
         }
+
 
 
 
@@ -277,23 +395,27 @@ passwordForm.addEventListener(
         const {
             data,
             error
-        } =
+        }
+        =
         await supabaseClient.auth.updateUser({
-            password
+
+            password: password
+
         });
 
 
 
         console.log(
-            "UPDATE RESULT :",
+            "📦 Réponse updateUser :",
             data
         );
 
 
         console.log(
-            "UPDATE ERROR :",
+            "⚠️ Erreur updateUser :",
             error
         );
+
 
 
 
@@ -304,9 +426,7 @@ passwordForm.addEventListener(
                 error.message;
 
 
-            errorMsg
-                .classList
-                .remove("hidden");
+            errorMsg.classList.remove("hidden");
 
 
             return;
@@ -315,24 +435,20 @@ passwordForm.addEventListener(
 
 
 
+
         console.log(
-            "🎉 Mot de passe changé avec succès"
+            "🎉 Mot de passe modifié avec succès"
         );
 
 
 
-        resetPasswordDiv
-            .classList
-            .add("hidden");
+        resetPasswordDiv.classList.add("hidden");
 
 
-        resetSuccessDiv
-            .classList
-            .remove("hidden");
+        resetSuccessDiv.classList.remove("hidden");
 
 
 
-        // Nettoyage URL
         window.history.replaceState(
             {},
             document.title,
